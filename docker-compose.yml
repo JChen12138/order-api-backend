@@ -1,0 +1,23 @@
+version: "3.8"
+
+services:
+  app:
+    build: .
+    container_name: crow_app
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redis
+    networks:
+      - crow_net
+
+  redis:
+    image: redis:7
+    container_name: redis_server
+    ports:
+      - "6379:6379"
+    networks:
+      - crow_net
+
+networks:
+  crow_net:

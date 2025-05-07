@@ -1,0 +1,23 @@
+g++ -std=c++17 -O3 -Iinclude -IC:\Users\16210\vcpkg\installed\x64-mingw-static\include -LC:\Users\16210\vcpkg\installed\x64-mingw-static\lib main.cpp -o server -lsqlite3 -lredis++_static -lhiredis -lfmt -lws2_32 -lmswsock
+
+
+sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr);//
+Parameter	Meaning
+db	        The opened SQLite database
+sql	        Your SQL query string
+-1	        Let SQLite figure out the length of the string
+&stmt	    SQLite will store the compiled statement here
+nullptr     Pointer to unused remai
+
+sqlite3_bind_text(stmt, 1, query.c_str(), -1, SQLITE_STATIC);
+Arg	Meaning
+stmt	        The prepared SQL statement
+1	            Position of the ? in the SQL (starts from 1, not 0!)
+query.c_str()	C-style string of the status value ("PAID", "PENDING", etc.)
+-1	            Let SQLite calculate string length automatically
+SQLITE_STATIC	Tells SQLite that the string won’t be freed — safe to use as-is
+
+srand(time(nullptr));
+srand(...) sets the starting point (seed) for the pseudo-random number generator used by rand().
+time(nullptr) returns the current time as the number of seconds since Jan 1, 1970.
+So srand(time(nullptr)) initializes the random number generator differently each time you run the program (assuming it's not the same second), ensuring different random sequences.
