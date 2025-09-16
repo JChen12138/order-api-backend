@@ -12,6 +12,29 @@ using namespace std;
 sqlite3* db = nullptr;
 Redis* redis = nullptr;
 
+
+
+
+struct LoggingMiddleware {
+    struct context {
+        chrono::steady_clock::time_point start_time;
+    };
+
+    void before_handle(crow::request& req, crow::response& res, context& ctx) {
+    //Crow calls this function internally as part of its request lifecycle, and it expects all three parameters to be there.
+        ctx.start_time = chrono::steady_clock::now();
+    }
+
+    void after_handle(crow::request& req, crow::response& res, context& ctx) {
+        auto end_time = std::chrono::steady_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - ctx.start_time).count();
+
+        spdlog::info("{} {} {} ({} ms)", crow::method_name(req.method), req.url, res.code, duration);
+
+    }
+};
+
+
 string generate_order_no(){
     long long timestamp = time(nullptr);
     int rand_part = rand()%100000;
@@ -62,7 +85,12 @@ int main(){
     Redis real_redis("tcp://127.0.0.1:6379");
     redis = &real_redis;
 
-    crow::SimpleApp app;
+    //crow::SimpleApp app;
+    crow::App<LoggingMiddleware> app;
+    CROW_ROUTE(app, "/healthcheck").methods("GET"_method)([]() {
+        return "OK";
+    });
+
     CROW_ROUTE(app, "/order/create").methods("POST"_method)([](const crow::request& req){
         auto body = crow::json::load(req.body);
         if(!body || !body.has("amount")){
