@@ -128,6 +128,19 @@ docker exec -it crow_app cat logs/server.log
 
 ---
 
+## ✅ Recent Updates
+
+- Added `/healthcheck` route for uptime monitoring
+- Introduced structured logging middleware (writes to `logs/server.log`)
+- Added `.gitignore` for logs, database files, and binaries:
+gitignore
+logs/
+*.log
+*.db
+server.exe
+
+---
+
 ## 🧑‍💻 Author
 
 Built as a demonstration project for backend development in C++.
