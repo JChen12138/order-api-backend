@@ -1,0 +1,26 @@
+name: C++ CI         # Name of the workflow shown in the GitHub Actions UI
+
+on: [push, pull_request]
+# Triggers:
+# - whenever you push to the repo
+# - or when someone opens a pull request
+
+jobs:
+  build:
+    runs-on: ubuntu-latest     # GitHub-hosted Ubuntu VM
+
+    steps:
+      - uses: actions/checkout@v2
+        # Standard step to checkout your repo into the runner
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ libsqlite3-dev libhiredis-dev
+        # Installs your dependencies
+
+      - name: Build and Run Tests
+        run: |
+          g++ -std=c++17 -Iinclude -I. test/test_main.cpp test/test_helpers.cpp -o test
+          ./test
+        # Compiles your test files and runs the tests

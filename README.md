@@ -1,3 +1,7 @@
+## 🧑‍💻 About This Project
+
+This project was built as part of my backend engineering preparation for real-world job applications. It emphasizes clean API design, observability, caching, and containerization — all implemented in C++ using modern tools.
+
 # Order API Backend (C++, Crow, Redis, SQLite, Docker)
 
 A lightweight RESTful backend service built with C++ and the [Crow](https://github.com/CrowCpp/crow) microframework. This API allows clients to create, pay for, and retrieve orders, with data persisted in SQLite and cached in Redis. Fully containerized using Docker and Docker Compose.
@@ -18,6 +22,35 @@ A lightweight RESTful backend service built with C++ and the [Crow](https://gith
 - Redis + redis-plus-plus
 - spdlog
 - Docker & Docker Compose
+
+## 🏗 Architecture Overview
+
+The service follows a modular, layered architecture:
+
+- **Crow App** handles HTTP routing and middleware
+- **SQLite3** stores persistent order records (on-disk)
+- **Redis** caches recent order data to reduce DB reads
+- **spdlog** provides structured logs for observability
+- **Docker Compose** manages Redis and server container orchestration
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- C++17 compatible compiler (e.g., g++ 11+, clang++)
+- CMake 3.15+
+- Redis (optional, but recommended for caching)
+- SQLite (included via header or linked as a library)
+
+### 🔧 Build Instructions
+
+```bash
+# Create a build directory and build the project
+mkdir build && cd build
+cmake ..
+make
+./server
+```
 
 ## 📦 API Endpoints
 
@@ -42,7 +75,17 @@ Response:
 }
 ```
 
----
+## 🧪 Testing the API
+
+Use [Postman](https://www.postman.com/) or `curl` to test endpoints.
+
+### Example: Create Order
+
+```bash
+curl -X POST http://localhost:8080/order/create \
+  -H "Content-Type: application/json" \
+  -d '{"amount": 49.99}'
+
 
 ### Get Order
 
@@ -100,14 +143,38 @@ Response:
 ### Build and Run
 
 ```bash
-docker compose build --no-cache
-docker compose up
+# Build and run using Docker Compose
+docker-compose up --build
 ```
 
 The API will be accessible at:  
 👉 `http://localhost:8080`
 
 Test with Postman or curl.
+
+## ✅ Run Unit Tests
+
+This project uses [doctest](https://github.com/doctest/doctest) for lightweight C++ unit testing.
+
+To compile and run tests:
+
+```bash
+g++ -std=c++17 -Iinclude -I. test/test_main.cpp test/test_helpers.cpp -o test -lws2_32
+./test
+```
+
+## 📁 Folder Structure
+
+```txt
+.
+├── src/              # C++ source files
+├── include/          # Header files
+├── logs/             # Log output (ignored in .gitignore)
+├── CMakeLists.txt    # CMake build file
+├── Dockerfile
+├── docker-compose.yml
+├── README.md
+└── ...
 
 ---
 
@@ -141,7 +208,5 @@ server.exe
 
 ---
 
-## 🧑‍💻 Author
 
-Built as a demonstration project for backend development in C++.
 

@@ -9,11 +9,58 @@
 using namespace sw::redis;
 using namespace std;
 
+inline bool is_valid_amount(const crow::json::rvalue& val) {
+    return val.t() == crow::json::type::Number && val.d() > 0;
+}
+
+inline bool is_valid_order_no(const crow::json::rvalue& val) {
+    return val.t() == crow::json::type::String && !val.s().empty();
+}
+//inline keyword in C++ is a compiler suggestion to insert the function’s body directly at each call site, 
+//instead of calling it via the normal function-call mechanism. It’s often used for small, frequently used
+
+
+crow::response json_error(int code, const std::string& message) {
+    crow::json::wvalue err;
+    err["error"] = message;
+    return crow::response(code, err);
+}
+
 sqlite3* db = nullptr;
 Redis* redis = nullptr;
 
+struct ErrorHandlerMiddleware {
+    struct context {}; // Required even if unused
 
+    void before_handle(crow::request& req, crow::response& res, context& ctx) {
+        // Do nothing before request
+    }
 
+    void after_handle(crow::request& req, crow::response& res, context& ctx) {
+        if (res.code >= 400) {
+            // Log the error
+            spdlog::warn("Error {} on {} {}", res.code, crow::method_name(req.method), req.url);
+
+            // If response body is empty, fill with JSON error
+            if (res.body.empty()) {
+                std::string error_msg;
+
+                switch (res.code) {
+                    case 400: error_msg = "Bad Request"; break;
+                    case 404: error_msg = "Not Found"; break;
+                    case 500: error_msg = "Internal Server Error"; break;
+                    default:  error_msg = "HTTP Error"; break;
+                }
+
+                crow::json::wvalue json;
+                json["error"] = error_msg;
+                json["code"] = res.code;
+                res.set_header("Content-Type", "application/json");
+                res.body = json.dump(); 
+            }
+        }
+    }
+};
 
 struct LoggingMiddleware {
     struct context {
@@ -33,7 +80,6 @@ struct LoggingMiddleware {
 
     }
 };
-
 
 string generate_order_no(){
     long long timestamp = time(nullptr);
@@ -86,29 +132,46 @@ int main(){
     redis = &real_redis;
 
     //crow::SimpleApp app;
-    crow::App<LoggingMiddleware> app;
+    crow::App<LoggingMiddleware, ErrorHandlerMiddleware> app;
     CROW_ROUTE(app, "/healthcheck").methods("GET"_method)([]() {
         return "OK";
     });
 
     CROW_ROUTE(app, "/order/create").methods("POST"_method)([](const crow::request& req){
         auto body = crow::json::load(req.body);
-        if(!body || !body.has("amount")){
-            return crow::response(400, "Missing amount");
+        if (!body) {
+            return json_error(400, "Invalid JSON format");
         }
+        if (!body.has("amount")|| !is_valid_amount(body["amount"])) {
+            return json_error(400, "Missing amount");
+        }
+        if (body["amount"].t() != crow::json::type::Number) {
+            return json_error(400, "Amount must be a number");
+        }
+
         double amount = body["amount"].d();
         string order_no = generate_order_no();
         time_t now = time(nullptr);
 
         sqlite3_stmt* stmt;
         const char* sql =  "INSERT INTO orders (order_no, amount, status, created_at, paid_at) VALUES (?, ?, ?, ?, ?);";
-        sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr);
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+            spdlog::error("Prepare failed: {}", sqlite3_errmsg(db));
+            return json_error(500, "Internal DB error");
+        }
         sqlite3_bind_text(stmt, 1, order_no.c_str(), -1, SQLITE_STATIC);
         sqlite3_bind_double(stmt, 2, amount);
         sqlite3_bind_text(stmt, 3, "PENDING", -1, SQLITE_STATIC);
         sqlite3_bind_int64(stmt, 4, now);
         sqlite3_bind_int64(stmt, 5, 0);
-        sqlite3_step(stmt);
+        
+        
+        if (sqlite3_step(stmt) != SQLITE_DONE) {
+            //SQLITE_DONE means: “I successfully ran your non-query SQL (like INSERT).”
+            spdlog::error("SQLite insert failed: {}", sqlite3_errmsg(db));
+            sqlite3_finalize(stmt);
+            return json_error(500, "Database error while creating order");
+        }
         sqlite3_finalize(stmt);
 
         crow::json::wvalue res;
@@ -119,6 +182,7 @@ int main(){
 
         ostringstream oss;
         oss << res.dump();
+
         try {
             redis->set("order:" + order_no, oss.str(), chrono::seconds(300)); 
             //cout << "[INFO] Cached order " << order_no << " in Redis (TTL: 300s)" << endl;
@@ -126,6 +190,7 @@ int main(){
         } catch (const sw::redis::Error& err) {
             //cerr << "[ERROR] Redis SET failed: " << err.what() << endl;
             spdlog::error("Redis SET failed: {}", err.what());
+            return json_error(500, "Internal server error: Redis unavailable");
         }
         return crow::response(res);
     });
@@ -145,16 +210,20 @@ int main(){
         } catch (const sw::redis::Error& err) {
             //cerr << "[ERROR] Redis GET failed: " << err.what() << endl;
             spdlog::error("Redis GET failed: {}", err.what());
+            return json_error(500, "Internal server error: Redis unavailable");
         }
 
         sqlite3_stmt* stmt;
         const char* sql = "SELECT amount, status, created_at, paid_at FROM orders WHERE order_no = ?;";
-        sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr);
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+            spdlog::error("Prepare failed: {}", sqlite3_errmsg(db));
+            return json_error(500, "Internal DB error");
+        }
         sqlite3_bind_text(stmt, 1, order_no.c_str(), -1, SQLITE_STATIC);
         
         if (sqlite3_step(stmt) != SQLITE_ROW) {
             sqlite3_finalize(stmt);
-            return crow::response(404, "Order not found");
+            return json_error(404, "Order not found");
         }
 
         double amount = sqlite3_column_double(stmt, 0);
@@ -174,18 +243,28 @@ int main(){
 
     CROW_ROUTE(app, "/order/pay").methods("POST"_method)([](const crow::request& req){
         auto body = crow::json::load(req.body);
-        if(!body || !body.has("order_no")){
-            return crow::response(400, "Missing order_no");
+        if (!body) {
+            return json_error(400, "Invalid JSON format");
         }
+        if (!body.has("order_no")|| !is_valid_order_no(body["order_no"])) {
+            return json_error(400, "Missing order_no");
+        }
+        if (body["order_no"].t() != crow::json::type::String) {
+            return json_error(400, "order_no must be a string");
+        }
+
         string order_no = body["order_no"].s();
         sqlite3_stmt* stmt;
         const char* select_sql = "SELECT amount, status, created_at FROM orders WHERE order_no = ?;";
-        sqlite3_prepare_v2(db, select_sql, -1, &stmt, nullptr);
+        if (sqlite3_prepare_v2(db, select_sql, -1, &stmt, nullptr) != SQLITE_OK) {
+            spdlog::error("Prepare failed: {}", sqlite3_errmsg(db));
+            return json_error(500, "Internal DB error");
+        }
         sqlite3_bind_text(stmt, 1, order_no.c_str(), -1, SQLITE_STATIC);
 
         if (sqlite3_step(stmt) != SQLITE_ROW) {
             sqlite3_finalize(stmt);
-            return crow::response(404, "Order not found");
+            return json_error(404, "Order not found");
         }
 
         double amount = sqlite3_column_double(stmt, 0);
@@ -194,7 +273,7 @@ int main(){
         sqlite3_finalize(stmt);
 
         if (status == "PAID") {
-            return crow::response(400, "Already paid");
+            return json_error(400, "Already paid");
         }
 
         try {
@@ -204,15 +283,25 @@ int main(){
         } catch (const sw::redis::Error& err) {
             //cerr << "[ERROR] Redis DEL failed: " << err.what() << endl;
             spdlog::error("Redis DEL failed: {}", err.what());
+            return json_error(500, "Internal server error: Redis unavailable");
         }
         
 
         time_t now = time(nullptr);
         const char* update_sql = "UPDATE orders SET status = 'PAID', paid_at = ? WHERE order_no = ?;";
-        sqlite3_prepare_v2(db, update_sql, -1, &stmt, nullptr);
+        if (sqlite3_prepare_v2(db, update_sql, -1, &stmt, nullptr) != SQLITE_OK) {
+            spdlog::error("Prepare failed: {}", sqlite3_errmsg(db));
+            return json_error(500, "Internal DB error");
+        }
         sqlite3_bind_int64(stmt, 1, now);
         sqlite3_bind_text(stmt, 2, order_no.c_str(), -1, SQLITE_STATIC);
-        sqlite3_step(stmt);
+        if (sqlite3_step(stmt) != SQLITE_DONE) {
+            //sqlite3_step executes the compiled SQL statement (stmt) passed to it
+            spdlog::error("SQLite update failed for payment: {}", sqlite3_errmsg(db));
+            sqlite3_finalize(stmt);
+            //sqlite3_finalize() frees the memory and resources associated with the prepared statement.
+            return json_error(500, "Failed to mark order as paid");
+        }
         sqlite3_finalize(stmt);
 
         crow::json::wvalue res;
@@ -231,10 +320,16 @@ int main(){
         const char* sql_filtered = "SELECT order_no, amount, status, created_at, paid_at FROM orders WHERE status = ?;";
         sqlite3_stmt* stmt;
         if(query.empty()){
-            sqlite3_prepare_v2(db, sql_all, -1, &stmt, nullptr);
+            if (sqlite3_prepare_v2(db, sql_all, -1, &stmt, nullptr) != SQLITE_OK) {
+                spdlog::error("Prepare failed: {}", sqlite3_errmsg(db));
+                return json_error(500, "Internal DB error");
+            }
         }
         else{
-            sqlite3_prepare_v2(db, sql_filtered, -1, &stmt, nullptr);
+            if (sqlite3_prepare_v2(db, sql_filtered, -1, &stmt, nullptr) != SQLITE_OK) {
+                spdlog::error("Prepare failed: {}", sqlite3_errmsg(db));
+                return json_error(500, "Internal DB error");
+            }
             sqlite3_bind_text(stmt, 1, query.c_str(), -1, SQLITE_STATIC);
         }
         crow::json::wvalue result;

@@ -1,0 +1,13 @@
+# Binaries & DB
+*.exe
+*.db
+*.log
+
+# Runtime logs
+logs/
+
+# CMake and build artifacts
+/build/
+/CMakeFiles/
+/cmake_install.cmake
+Makefile

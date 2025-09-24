@@ -1,5 +1,7 @@
 g++ -std=c++17 -O3 -Iinclude -IC:\Users\16210\vcpkg\installed\x64-mingw-static\include -LC:\Users\16210\vcpkg\installed\x64-mingw-static\lib main.cpp -o server -lsqlite3 -lredis++_static -lhiredis -lfmt -lws2_32 -lmswsock
 
+g++ -std=c++17 -Iinclude -I. test/test_main.cpp test/test_helpers.cpp -o test -lws2_32
+
 
 sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr);//
 Parameter	Meaning
@@ -21,3 +23,11 @@ srand(time(nullptr));
 srand(...) sets the starting point (seed) for the pseudo-random number generator used by rand().
 time(nullptr) returns the current time as the number of seconds since Jan 1, 1970.
 So srand(time(nullptr)) initializes the random number generator differently each time you run the program (assuming it's not the same second), ensuring different random sequences.
+
+Typical usage:
+📄 test_main.cpp
+#define DOCTEST_CONFIG_IMPLEMENT
+#include "doctest.h"
+📄 test_helpers.cpp
+#include "doctest.h"
+
