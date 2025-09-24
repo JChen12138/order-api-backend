@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Code\Projects\RestAPI_DB\build\CMakeFiles\dcc27c7f1d27230c1b910ac83ddd9682\RUN_TESTS_force.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{5B9B0BAC-29D4-3150-A3CC-4AFF7140F55F}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

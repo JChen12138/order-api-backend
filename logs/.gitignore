@@ -11,3 +11,7 @@ logs/
 /CMakeFiles/
 /cmake_install.cmake
 Makefile
+
+# Personal used files
+note.txt
+beforeLog.cpp
