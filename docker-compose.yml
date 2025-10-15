@@ -6,6 +6,21 @@ services:
     container_name: crow_app
     ports:
       - "8080:8080"
+    environment:
+      - REDIS_HOST=redis
+    depends_on:
+      - redis
+    networks:
+      - crow_net
+    volumes:
+      - ./logs:/app/logs             # So logs are visible on host
+      - ./orders.db:/app/orders.db     # Optional: persist DB file if not purely in-memory
+
+
+  test:
+    build: .
+    container_name: crow_test
+    command: ["./run_tests"]
     depends_on:
       - redis
     networks:

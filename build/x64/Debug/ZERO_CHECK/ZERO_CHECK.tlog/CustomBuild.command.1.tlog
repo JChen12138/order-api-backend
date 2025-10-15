@@ -1,0 +1,10 @@
+^C:\CODE\PROJECTS\RESTAPI_DB\BUILD\CMAKEFILES\85473F38BF974D21A50DAC333EDE5F27\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Code/Projects/RestAPI_DB -BC:/Code/Projects/RestAPI_DB/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Code/Projects/RestAPI_DB/build/OrderApiBackend.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

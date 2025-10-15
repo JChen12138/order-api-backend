@@ -2,4 +2,5 @@ C:/Code/Projects/RestAPI_DB/build/CMakeFiles/server.dir
 C:/Code/Projects/RestAPI_DB/build/CMakeFiles/RUN_TESTS.dir
 C:/Code/Projects/RestAPI_DB/build/CMakeFiles/ALL_BUILD.dir
 C:/Code/Projects/RestAPI_DB/build/CMakeFiles/ZERO_CHECK.dir
+C:/Code/Projects/RestAPI_DB/build/test/CMakeFiles/unit_tests.dir
 C:/Code/Projects/RestAPI_DB/build/test/CMakeFiles/RUN_TESTS.dir

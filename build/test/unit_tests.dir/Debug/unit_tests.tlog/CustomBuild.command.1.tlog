@@ -1,0 +1,10 @@
+^C:\CODE\PROJECTS\RESTAPI_DB\TEST\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Code/Projects/RestAPI_DB -BC:/Code/Projects/RestAPI_DB/build --check-stamp-file C:/Code/Projects/RestAPI_DB/build/test/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

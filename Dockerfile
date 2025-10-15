@@ -25,9 +25,14 @@ WORKDIR /app
 # Copy your source code
 COPY . .
 
+# Build test binary 
+RUN g++ -DTEST_API_HOST=\"crow_app\" -std=c++17 -Iinclude -I. test/test_main.cpp test/test_helpers.cpp test/test_endpoints.cpp -o run_tests -lsqlite3 -lfmt -lredis++ -lhiredis
+
+
 # Build your app
-RUN g++ -std=c++17 -O3 -Iinclude main.cpp -o server \
+RUN g++ -std=c++17 -O3 -Iinclude src/main.cpp src/order_routes.cpp -o server \
     -lsqlite3 -lredis++ -lhiredis -lpthread -lfmt
+
 
 # Expose app port
 EXPOSE 8080
