@@ -1,10 +1,17 @@
-# Ignore build files
-build/
-logs/
-*.log
+# Binaries & DB
+*.exe
 *.db
-server.exe
-beforeLog.cpp
-note.txt
+*.log
+
+# Runtime logs
+logs/
+
+# CMake and build artifacts
+/build/
+/CMakeFiles/
+/cmake_install.cmake
 Makefile
-Makefile.in
+
+# Personal used files
+note.txt
+beforeLog.cpp
