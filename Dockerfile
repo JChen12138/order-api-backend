@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     libhiredis-dev \
     libssl-dev \
     libspdlog-dev \
+    libcurl4-openssl-dev \       
     g++ \
     git \
     pkg-config \
@@ -18,6 +19,12 @@ RUN git clone https://github.com/sewenew/redis-plus-plus.git && \
     cd redis-plus-plus && mkdir build && cd build && \
     cmake .. -DCMAKE_BUILD_TYPE=Release && \
     make && make install && cd ../.. && rm -rf redis-plus-plus
+
+# --- Install prometheus-cpp ---
+RUN git clone --recurse-submodules https://github.com/jupp0r/prometheus-cpp.git && \
+    cd prometheus-cpp && mkdir build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DENABLE_PULL=ON && \
+    make -j4 && make install && cd ../.. && rm -rf prometheus-cpp
 
 # Set working directory
 WORKDIR /app

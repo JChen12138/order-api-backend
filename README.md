@@ -1,13 +1,15 @@
 ## 🧑‍💻 About This Project
 ![Docker](https://img.shields.io/badge/docker-ready-blue)
 ![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)
+[![prometheus-cpp](https://img.shields.io/badge/prometheus--cpp-library-yellow)](https://github.com/jupp0r/prometheus-cpp)
+[![spdlog](https://img.shields.io/badge/spdlog-logging-orange)](https://github.com/gabime/spdlog)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 
 This project was built as part of my backend engineering preparation for real-world job applications. It emphasizes clean API design, observability, caching, containerization, and testability, all implemented in **modern C++**.
 
 # Order API Backend (C++, Crow, Redis, SQLite, Docker)
 
-A lightweight RESTful backend service built with C++ and the [Crow](https://github.com/CrowCpp/crow) microframework. This API allows clients to create, pay for, delete, and retrieve orders, with data persisted in SQLite and cached in Redis. The project is fully containerized and supports unit + integration testing using Docker.
+A lightweight RESTful backend service built with C++ and the [Crow](https://github.com/CrowCpp/crow) microframework. This API allows clients to create, pay for, delete, and retrieve orders, with data persisted in SQLite and cached in Redis. The project is fully containerized and supports authentication, observability via Prometheus, and unit + integration testing using Docker.
 
 ---
 
@@ -15,8 +17,10 @@ A lightweight RESTful backend service built with C++ and the [Crow](https://gith
 
 - REST API for:
   - Creating, paying, deleting, and listing orders
+- API Key authentication via `Authorization`
 - SQLite for persistent storage
 - Redis for caching order data (TTL: 5 minutes)
+- Prometheus `/metrics` endpoint for observability
 - End-to-end integration tests via [doctest](https://github.com/doctest/doctest)
 - Structured logging via spdlog (`logs/server.log`)
 - Fully containerized with Docker and Docker Compose
@@ -30,6 +34,7 @@ A lightweight RESTful backend service built with C++ and the [Crow](https://gith
 - **Crow** (HTTP microframework)
 - **SQLite3**
 - **Redis + redis-plus-plus**
+- **prometheus-cpp**
 - **spdlog** (structured logging)
 - **Docker** & **Docker Compose**
 - **doctest** (unit + integration testing)
@@ -47,9 +52,56 @@ Client <--> Crow HTTP Server <--> SQLite3 (DB)
 - `Crow` handles routing + middleware
 - `Redis` caches recently accessed orders for fast reads
 - `SQLite` persistently stores all order records
+- `prometheus-cpp` exposes metrics on `/metrics`
 - `spdlog` logs structured logs to disk
 - `Docker Compose` manages Redis, test, and server containers
 - `doctest` handles automated test coverage of critical flows
+
+---
+
+## 🔐 Authentication
+
+All routes except `/metrics` and `/healthcheck` are protected via API key middleware.
+
+### Header Required:
+```http
+Authorization: 1234567
+```
+
+Requests without this will return:
+
+```json
+{"error": "Unauthorized"}
+```
+
+---
+
+## 📊 Metrics
+
+The `/metrics` endpoint exposes Prometheus-formatted stats:
+
+- HTTP request count and latency per endpoint
+- Redis hits/misses
+- SQLite query counts
+
+To view metrics:
+
+```bash
+GET http://localhost:8080/metrics
+```
+
+This route does not require authentication and is meant to be scraped by Prometheus.
+Example Output:
+
+```bash
+# HELP http_requests_total Total number of HTTP requests
+# TYPE http_requests_total counter
+http_requests_total{method="GET",route="/order/get/:id"} 12
+http_requests_total{method="POST",route="/order/create"} 7
+
+# HELP http_request_duration_seconds HTTP request durations in seconds
+# TYPE http_request_duration_seconds histogram
+```
 
 ---
 
@@ -70,8 +122,9 @@ Client <--> Crow HTTP Server <--> SQLite3 (DB)
 ---
 
 ## 📦 API Endpoints
+🛡️ Routes marked with 🔐 require the `Authorization` header.
 
-### ✅ Create Order
+### ✅ Create Order🔐
 
 **POST** `/order/create`
 
@@ -95,7 +148,7 @@ Returns a new order record.
 
 ---
 
-### 💸 Pay Order
+### 💸 Pay Order🔐
 
 **POST** `/order/pay`
 
@@ -109,7 +162,7 @@ Marks an order as paid and removes it from Redis cache.
 
 ---
 
-### 🔍 Get Order
+### 🔍 Get Order🔐
 
 **GET** `/order/get/{order_no}`
 
@@ -117,7 +170,7 @@ Checks Redis first. Falls back to SQLite on cache miss.
 
 ---
 
-### 📃 List Orders
+### 📃 List Orders🔐
 
 **GET** `/order/list`
 
@@ -140,7 +193,7 @@ Optional query param: `?status=PAID` or `?status=PENDING`
 
 ---
 
-### ❌ Delete Order
+### ❌ Delete Order🔐
 
 **DELETE** `/order/delete/{order_no}`
 
@@ -148,6 +201,23 @@ Deletes the order from both SQLite and Redis.
 
 ---
 
+### 🩺 Healthcheck (No Auth)
+
+**GET** `/healthcheck`
+
+Returns a simple OK response to confirm the service is alive.
+
+---
+
+### 📊 Metrics (No Auth)
+
+**GET** `/metrics`
+
+Prometheus-compatible metrics output.
+
+Visit http://localhost:8080/metrics in browser to inspect metrics manually
+
+---
 
 ## 🚀 Getting Started
 
@@ -175,10 +245,21 @@ make
 
 You can use `curl` or [Postman](https://www.postman.com/) to interact with the endpoints.
 
-### Example: Create Order
+### Example: Create Order (With Auth):
 
 ```bash
-curl -X POST http://localhost:8080/order/create   -H "Content-Type: application/json"   -d '{"amount": 49.99}'
+curl -X POST http://localhost:8080/order/create \
+     -H "Content-Type: application/json" \
+     -H "Authorization: 1234567" \
+     -d '{"amount": 49.99}'
+```
+
+# Without authorization
+curl -X GET http://localhost:8080/order/list
+
+# Expected response
+```json
+{"error": "Unauthorized"}
 ```
 
 ---
@@ -220,7 +301,7 @@ Tests include:
 ```bash
 docker-compose run test
 # In separate terminal while docker is running:
-curl -X GET http://localhost:8080/order/list
+curl -X GET http://localhost:8080/order/list -H "Authorization: 1234567"
 ```
 
 Expected output:
@@ -286,6 +367,8 @@ server.exe
 - ✅ Docker volume mapping for logs and Redis data
 - ✅ Docker unit tests working (exit code 0)
 - ✅ Clean logs: all tests pass, server starts cleanly
+- ✅ Prometheus /metrics with histograms and counters
+- ✅ API key authentication middleware for all critical endpoints
 
 ---
 
@@ -295,6 +378,7 @@ server.exe
 - Order status is either `PENDING` or `PAID`.
 - Redis is optional — fallback to DB works gracefully.
 - SQLite DB and logs are persisted via volumes.
+- Prometheus metrics are exported on /metrics.
 
 ---
 

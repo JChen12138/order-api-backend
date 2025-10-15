@@ -9,10 +9,12 @@
 #include <spdlog/spdlog.h>
 #include <sstream>
 #include <ctime>
+#include "metrics.h"
 
 extern sqlite3* db;
 extern sw::redis::Redis* redis;
 using namespace std;
+using namespace metrics;
 
 std::string format_time(time_t t);
 std::string generate_order_no();
@@ -21,6 +23,8 @@ bool is_valid_amount(const crow::json::rvalue& val);
 bool is_valid_order_no(const crow::json::rvalue& val);
 
 crow::response create_order(const crow::request& req) {
+    total_requests++;
+    orders_created++;
     auto body = crow::json::load(req.body);
     if (!body) {
         return json_error(400, "Invalid JSON format");
@@ -79,13 +83,16 @@ crow::response create_order(const crow::request& req) {
 }
 
 crow::response get_order(const std::string& order_no) {
+    total_requests++;
     try {
         auto val = redis->get("order:" + order_no);
         if (val) {
+            cache_hits++;
             //cout << "[INFO] Redis cache hit for order " << order_no << endl;
             spdlog::info("Redis cache hit for order: {}", order_no);
             return crow::response(*val);
         } else {
+            cache_misses++;
             //cout << "[INFO] Redis cache miss for order " << order_no << endl;
             spdlog::info("Redis cache miss for order: {}", order_no);
 
@@ -124,7 +131,9 @@ crow::response get_order(const std::string& order_no) {
 }
 
 crow::response pay_order(const crow::request& req) {
-auto body = crow::json::load(req.body);
+    total_requests++;
+    orders_paid++;
+    auto body = crow::json::load(req.body);
     if (!body) {
         return json_error(400, "Invalid JSON format");
     }
@@ -197,6 +206,7 @@ auto body = crow::json::load(req.body);
 }
 
 crow::response list_orders(const crow::request& req) {
+    total_requests++;
     string query = req.url_params.get("status") ? req.url_params.get("status") : "";
     const char* sql_all = "SELECT order_no, amount, status, created_at, paid_at FROM orders;";
     const char* sql_filtered = "SELECT order_no, amount, status, created_at, paid_at FROM orders WHERE status = ?;";
@@ -232,6 +242,7 @@ crow::response list_orders(const crow::request& req) {
 }
 
 crow::response delete_order(const std::string& order_no) {
+    total_requests++;
     // Delete from SQLite
     sqlite3_stmt* stmt;
     const char* sql = "DELETE FROM orders WHERE order_no = ?;";
@@ -260,3 +271,5 @@ crow::response delete_order(const std::string& order_no) {
     res["order_no"] = order_no;
     return crow::response(200, res);
 }
+
+

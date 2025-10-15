@@ -8,9 +8,12 @@
 #include <spdlog/sinks/basic_file_sink.h>
 #include <cstdlib>
 #include "order_routes.h"
+#include "auth_middleware.h"
+#include "metrics.h"
 
 using namespace sw::redis;
 using namespace std;
+using namespace metrics;
 
 string get_env(const string& var, const string& default_val) {
     const char* val = getenv(var.c_str());
@@ -142,7 +145,8 @@ int main(){
     redis = &real_redis;
 
     //crow::SimpleApp app;
-    crow::App<LoggingMiddleware, ErrorHandlerMiddleware> app;
+    crow::App<LoggingMiddleware, ErrorHandlerMiddleware, AuthMiddleware> app;  
+
     CROW_ROUTE(app, "/healthcheck").methods("GET"_method)([]() {
         return "OK";
     });
@@ -151,8 +155,22 @@ int main(){
     CROW_ROUTE(app, "/order/pay").methods("POST"_method)(pay_order);
     CROW_ROUTE(app, "/order/list").methods("GET"_method)(list_orders);
     CROW_ROUTE(app, "/order/delete/<string>").methods("DELETE"_method)(delete_order);
+    CROW_ROUTE(app, "/metrics").methods("GET"_method)([] {
+        ostringstream os;
+        os << "# TYPE total_requests counter\n";
+        os << "total_requests " << total_requests.load() << "\n";
+        os << "orders_created " << orders_created.load() << "\n";
+        os << "orders_paid " << orders_paid.load() << "\n";
+        os << "cache_hits " << cache_hits.load() << "\n";
+        os << "cache_misses " << cache_misses.load() << "\n";
+
+        crow::response res;
+        res.code = 200;
+        res.set_header("Content-Type", "text/plain");
+        res.write(os.str());
+        return res;
+    });
 
 
-    
     app.port(8080).multithreaded().run();
 }
