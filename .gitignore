@@ -1,0 +1,10 @@
+# Ignore build files
+build/
+logs/
+*.log
+*.db
+server.exe
+Makefile
+Makefile.in
+beforeLog.cpp
+note.txt
