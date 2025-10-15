@@ -21,6 +21,6 @@ jobs:
 
       - name: Build and Run Tests
         run: |
-          g++ -std=c++17 -Iinclude -I. test/test_main.cpp test/test_helpers.cpp -o test
-          ./test
+          g++ -std=c++17 -Iinclude -I. test/test_main.cpp test/test_helpers.cpp -o test_runner
+          ./test_runner
         # Compiles your test files and runs the tests
