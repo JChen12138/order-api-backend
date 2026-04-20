@@ -1,12 +1,12 @@
 #pragma once
 #include "crow_all.h"
+#include "service_state.h"
 
 struct AuthMiddleware {
     struct context {};
 
     void before_handle(crow::request& req, crow::response& res, context&) {
-        // Allow unauthenticated access to /metrics and /healthcheck
-        if (req.url == "/metrics" || req.url == "/healthcheck") {
+        if (service_state::is_probe_path(req.url)) {
             return;
         }
 

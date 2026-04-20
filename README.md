@@ -1,391 +1,279 @@
-## 🧑‍💻 About This Project
-![Docker](https://img.shields.io/badge/docker-ready-blue)
-![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)
-[![prometheus-cpp](https://img.shields.io/badge/prometheus--cpp-library-yellow)](https://github.com/jupp0r/prometheus-cpp)
-[![spdlog](https://img.shields.io/badge/spdlog-logging-orange)](https://github.com/gabime/spdlog)
-![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+# Order Service Backend (C++17)
 
-This project was built as part of my backend engineering preparation for real-world job applications. It emphasizes clean API design, observability, caching, containerization, and testability, all implemented in **modern C++**.
+A hands-on C++17 backend/systems project focused on building a multithreaded HTTP service with middleware-based request handling, Redis-backed caching, SQLite persistence, Prometheus-compatible metrics, Dockerized deployment, and end-to-end API testing.
 
-# Order API Backend (C++, Crow, Redis, SQLite, Docker)
+## Project Goal
 
-A lightweight RESTful backend service built with C++ and the [Crow](https://github.com/CrowCpp/crow) microframework. This API allows clients to create, pay for, delete, and retrieve orders, with data persisted in SQLite and cached in Redis. The project is fully containerized and supports authentication, observability via Prometheus, and unit + integration testing using Docker.
+Build a portfolio-quality backend project that demonstrates:
 
----
+- Service construction in modern C++
+- Request lifecycle control through middleware
+- Cache and storage coordination
+- Observability and local operability
 
-## 🚀 Features
+## Recent Additions (as of April 2026)
 
-- REST API for:
-  - Creating, paying, deleting, and listing orders
-- API Key authentication via `Authorization`
-- SQLite for persistent storage
-- Redis for caching order data (TTL: 5 minutes)
-- Prometheus `/metrics` endpoint for observability
-- End-to-end integration tests via [doctest](https://github.com/doctest/doctest)
-- Structured logging via spdlog (`logs/server.log`)
-- Fully containerized with Docker and Docker Compose
-- Modular codebase with routing logic separated by responsibility
+- Added readiness vs liveness endpoints so the service can distinguish probe semantics during normal operation and shutdown
+- Added shutdown drain mode via signal handling so the service flips out of readiness before stopping
+- Added in-flight request limiting with overload rejection behavior
+- Upgraded metrics to include overload, shutdown, Redis, SQLite, and request-latency counters
+- Changed Redis failure handling to degrade to DB-backed behavior where possible instead of failing every request with `500`
 
----
+## Current Scope
 
-## 🛠 Tech Stack
+- Crow-based multithreaded HTTP server
+- Middleware for auth, logging, overload protection, and error response normalization
+- Order lifecycle endpoints for create, get, pay, list, and delete
+- Redis cache-aside read path with TTL-based caching
+- SQLite-backed persistence layer
+- Readiness/liveness separation with drain-mode shutdown behavior
+- Intentional degraded-mode behavior when Redis is unavailable
+- Prometheus-compatible counters exposed on `/metrics`
+- Docker Compose setup for app, Redis, Prometheus, and test container
+- doctest-based unit and API integration coverage
 
-- **C++17**
-- **Crow** (HTTP microframework)
-- **SQLite3**
-- **Redis + redis-plus-plus**
-- **prometheus-cpp**
-- **spdlog** (structured logging)
-- **Docker** & **Docker Compose**
-- **doctest** (unit + integration testing)
+## Features
 
----
+- Multithreaded HTTP serving with Crow
+- API key authentication middleware
+- In-flight request limiting with `503` overload shedding
+- Request logging with latency measurement
+- Centralized JSON error shaping
+- Redis caching for order lookups
+- SQLite storage for durable order records
+- Health check endpoint for liveness probing
+- Readiness endpoint that reports ready, degraded, or shutting-down state
+- Prometheus-scrapable service counters
+- Structured file logging via `spdlog`
+- Dockerized local development workflow
 
-## 🏗 Architecture Overview
+## Important Behavior Notes
 
-```
-Client <--> Crow HTTP Server <--> SQLite3 (DB)
-                             |
-                             └--> Redis (cache, 5 min TTL)
-```
+- The service runs with `app.multithreaded().run()`, so request handling is not limited to a single thread.
+- Authentication is implemented as middleware and currently exempts `/metrics`, `/healthcheck`, and `/readiness`.
+- The service handles `SIGINT` / `SIGTERM` by entering drain mode first, failing readiness, and then stopping the server.
+- New business requests are rejected during shutdown with `503 Service Unavailable` instead of being accepted while the process is exiting.
+- In-flight request limiting is enforced in middleware; overload is surfaced as `503 Service Unavailable`.
+- The read path follows a cache-aside model: Redis is checked first, and SQLite is used on cache miss.
+- State-changing operations invalidate cached order entries instead of trying to update cache and DB in a distributed transaction.
+- Redis is treated as an optional acceleration layer for most request paths; if Redis is unavailable, reads fall back to SQLite and write-side cache population/invalidation becomes best effort.
+- `/metrics` currently exposes richer service-level counters and latency aggregates, but not full labeled per-route histograms.
+- The API key is hard-coded in the current implementation and should be treated as demo-only, not production-ready secret handling.
 
-- `Crow` handles routing + middleware
-- `Redis` caches recently accessed orders for fast reads
-- `SQLite` persistently stores all order records
-- `prometheus-cpp` exposes metrics on `/metrics`
-- `spdlog` logs structured logs to disk
-- `Docker Compose` manages Redis, test, and server containers
-- `doctest` handles automated test coverage of critical flows
+## Project Structure
 
----
-
-## 🔐 Authentication
-
-All routes except `/metrics` and `/healthcheck` are protected via API key middleware.
-
-### Header Required:
-```http
-Authorization: 1234567
-```
-
-Requests without this will return:
-
-```json
-{"error": "Unauthorized"}
-```
-
----
-
-## 📊 Metrics
-
-The `/metrics` endpoint exposes Prometheus-formatted stats:
-
-- HTTP request count and latency per endpoint
-- Redis hits/misses
-- SQLite query counts
-
-To view metrics:
-
-```bash
-GET http://localhost:8080/metrics
-```
-
-This route does not require authentication and is meant to be scraped by Prometheus.
-Example Output:
-
-```bash
-# HELP http_requests_total Total number of HTTP requests
-# TYPE http_requests_total counter
-http_requests_total{method="GET",route="/order/get/:id"} 12
-http_requests_total{method="POST",route="/order/create"} 7
-
-# HELP http_request_duration_seconds HTTP request durations in seconds
-# TYPE http_request_duration_seconds histogram
-```
-
----
-
-## 📁 Folder Structure
-
-```txt
+```text
 .
-├── include/                 # C++ header files (helpers, routes)
-├── src/                     # Main and route implementation files
-├── test/                    # Unit & integration tests (doctest-based)
-├── logs/                   # Log output (ignored in .gitignore)
-├── Dockerfile               # Docker app build
-├── docker-compose.yml       # Multi-container orchestration
-├── CMakeLists.txt           # CMake build script
-└── README.md
+|-- include/
+|   |-- auth_middleware.h
+|   |-- helpers.hpp
+|   |-- metrics.h
+|   |-- order_routes.h
+|   |-- service_state.h
+|   `-- crow_all.h
+|-- src/
+|   |-- main.cpp
+|   `-- order_routes.cpp
+|-- test/
+|   |-- test_endpoints.cpp
+|   |-- test_helpers.cpp
+|   `-- test_main.cpp
+|-- logs/
+|-- Dockerfile
+|-- docker-compose.yml
+|-- prometheus.yml
+|-- CMakeLists.txt
+`-- README.md
 ```
 
----
+## Build and Run
 
-## 📦 API Endpoints
-🛡️ Routes marked with 🔐 require the `Authorization` header.
+### Requirements
 
-### ✅ Create Order🔐
+- C++17 compiler
+- CMake 3.12+
+- SQLite3
+- Redis
+- Docker and Docker Compose for the containerized workflow
 
-**POST** `/order/create`
-
-```json
-{
-  "amount": 99.99
-}
-```
-
-Returns a new order record.
-
-**Response:**
-```json
-{
-  "order_no": "ORD17150740421042",
-  "amount": 99.99,
-  "status": "PENDING",
-  "created_at": "2025-05-07 08:27:22"
-}
-```
-
----
-
-### 💸 Pay Order🔐
-
-**POST** `/order/pay`
-
-```json
-{
-  "order_no": "ORD17150740421042"
-}
-```
-
-Marks an order as paid and removes it from Redis cache.
-
----
-
-### 🔍 Get Order🔐
-
-**GET** `/order/get/{order_no}`
-
-Checks Redis first. Falls back to SQLite on cache miss.
-
----
-
-### 📃 List Orders🔐
-
-**GET** `/order/list`
-
-Optional query param: `?status=PAID` or `?status=PENDING`
-
-**Response:**
-```json
-{
-  "orders": [
-    {
-      "order_no": "...",
-      "amount": ...,
-      "status": "PAID",
-      "created_at": "...",
-      "paid_at": "..."
-    }
-  ]
-}
-```
-
----
-
-### ❌ Delete Order🔐
-
-**DELETE** `/order/delete/{order_no}`
-
-Deletes the order from both SQLite and Redis.
-
----
-
-### 🩺 Healthcheck (No Auth)
-
-**GET** `/healthcheck`
-
-Returns a simple OK response to confirm the service is alive.
-
----
-
-### 📊 Metrics (No Auth)
-
-**GET** `/metrics`
-
-Prometheus-compatible metrics output.
-
-Visit http://localhost:8080/metrics in browser to inspect metrics manually
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- C++17-compatible compiler (e.g., `g++ 11+`)
-- CMake 3.15+
-- Redis server (local or via Docker)
-- SQLite3 installed
-
----
-
-### 🔧 Manual Build (CMake)
+### Canonical Local Build
 
 ```bash
-mkdir build && cd build
+mkdir build
+cd build
 cmake ..
-make
-./server
+cmake --build .
 ```
 
----
-
-## 🧪 Testing the API
-
-You can use `curl` or [Postman](https://www.postman.com/) to interact with the endpoints.
-
-### Example: Create Order (With Auth):
+Run:
 
 ```bash
-curl -X POST http://localhost:8080/order/create \
-     -H "Content-Type: application/json" \
-     -H "Authorization: 1234567" \
-     -d '{"amount": 49.99}'
+./bin/server
 ```
 
-# Without authorization
-curl -X GET http://localhost:8080/order/list
+Service endpoint:
 
-# Expected response
-```json
-{"error": "Unauthorized"}
+```text
+http://localhost:8080
 ```
 
----
+### Docker Demo
 
-## 🐳 Run with Docker
+A minimal Docker stack is included for the app, Redis, Prometheus, and the test container.
 
-### Prerequisites
-
-- Docker
-- Docker Compose
-
----
-
-### Run the Full Stack
+Run:
 
 ```bash
 docker-compose up --build
 ```
 
-Then access the service at:  
-👉 `http://localhost:8080`
+Endpoints:
 
----
+```text
+App:         http://localhost:8080
+Liveness:    http://localhost:8080/healthcheck
+Readiness:   http://localhost:8080/readiness
+Metrics:     http://localhost:8080/metrics
+Prometheus:  http://localhost:9090
+```
 
-### Docker Compose Setup Highlights
+Notes:
 
-- Redis volume is persisted via `./redis_data`
-- Application logs are volume-mapped to `./logs/`
-- Source is mounted for rebuild convenience
+- `REDIS_HOST=redis` is injected through Docker Compose so the app uses the Redis container by service name.
+- Logs are mounted to `./logs`.
+- The SQLite database file is mounted through Compose for persistence across container restarts.
+- `MAX_INFLIGHT_REQUESTS`, `SERVER_PORT`, and `SHUTDOWN_DRAIN_MS` can be configured with environment variables.
 
----
+### CMake Status
 
-## 🧪 Run All Tests in Docker
+The repository includes a working CMake path for the server and test targets on the current local setup. The current CMake configuration is environment-specific on Windows because it links directly against local `vcpkg` library paths.
 
-Tests include:
-- Unit tests (helpers, validators)
-- Integration tests (`order/create`, `order/pay`, `order/delete`)
+## Tests
+
+### Docker Integration Test Path
 
 ```bash
 docker-compose run test
-# In separate terminal while docker is running:
-curl -X GET http://localhost:8080/order/list -H "Authorization: 1234567"
 ```
 
-Expected output:
+Covered areas:
 
-```bash
-[doctest] test cases: 3 | 3 passed | 0 failed
+- Order creation success path
+- Invalid order amount handling
+- Order payment flow
+- Invalid or missing `order_no` handling
+- Delete flow across API, cache, and persistent storage
+- Readiness probe response shape
+- Metrics exposure for lifecycle and overload counters
+
+Verified in repo:
+
+- doctest-based endpoint coverage exists in `test/test_endpoints.cpp`
+- helper validation coverage exists in `test/test_helpers.cpp`
+
+## Metrics Overview
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `total_requests` | Counter | Total handled requests across endpoints |
+| `orders_created` | Counter | Orders created successfully |
+| `orders_paid` | Counter | Orders marked as paid |
+| `cache_hits` | Counter | Redis hits on order lookup |
+| `cache_misses` | Counter | Redis misses on order lookup |
+| `overload_rejections` | Counter | Requests rejected because the in-flight limit was exceeded |
+| `shutdown_rejections` | Counter | Requests rejected while the service was draining for shutdown |
+| `redis_errors` | Counter | Redis operation failures and unavailable-client events |
+| `sqlite_errors` | Counter | SQLite prepare/step failures |
+| `in_flight_requests` | Gauge-style counter | Current business requests being processed |
+| `http_request_duration_ms_*` | Aggregate counters | Total, count, average, and max request duration in milliseconds |
+| `cache_hit_ratio` | Derived gauge | Cache hit ratio computed from hits and misses |
+
+## Architecture (Request -> Middleware -> Cache/DB)
+
+```text
+Layer 1: Request Entry
+  Crow HTTP server
+  - accepts client requests
+  - dispatches routes on a multithreaded server
+
+Layer 2: Middleware
+  AuthMiddleware
+  - validates Authorization header
+  - skips /metrics, /healthcheck, and /readiness
+
+  LifecycleMiddleware
+  - rejects new business traffic during shutdown drain
+  - applies in-flight overload protection
+  - tracks current request concurrency
+
+  LoggingMiddleware
+  - records request path, status, and latency
+
+  ErrorHandlerMiddleware
+  - normalizes error responses
+  - logs failed requests
+
+Layer 3: Handlers + Dependencies
+  Order handlers
+  - use Redis for cache lookup / invalidation
+  - use SQLite for persistent storage
+  - update in-process metrics counters
 ```
 
-Note: A small `sleep` delay is included in tests to ensure the Redis server is ready before API calls begin.
+## Execution Flow Overview
 
----
+This project follows a simple backend service flow: Request -> Middleware -> Handler -> Dependency.
 
-## 🗂 Logs
+1. Request Entry
+- Crow accepts an HTTP request and routes it to the matching handler
+- the app runs in multithreaded mode, so multiple requests can be served concurrently
 
-Logs are saved at `logs/server.log` in your project root (mounted from Docker volume). View them with:
+2. Middleware Processing
+- `AuthMiddleware` validates the API key for protected routes
+- `LifecycleMiddleware` blocks new work during shutdown and sheds load when the request budget is exceeded
+- `LoggingMiddleware` records start time before the handler and logs latency after completion
+- `ErrorHandlerMiddleware` converts empty error bodies into normalized JSON responses
 
-```bash
-cat logs/server.log
-```
+3. Handler Logic
+- create writes a new order to SQLite and then best-effort populates Redis with a TTL-based cache entry
+- get checks Redis first and falls back to SQLite on cache miss or Redis failure
+- pay updates SQLite state and then best-effort invalidates the cached order
+- delete removes the order from SQLite and then best-effort invalidates Redis
+- list reads order state from SQLite directly
 
----
+4. Observability Surface
+- service-level counters are exposed through `/metrics`
+- liveness is exposed through `/healthcheck`
+- readiness is exposed through `/readiness`
+- request logs are written to `logs/server.log`
 
-## ✅ Run Unit Tests Individually
+## Engineering Positioning
 
-This project uses [doctest](https://github.com/doctest/doctest) for lightweight C++ unit testing.
+This project is intentionally different from a business CRUD demo. The value is less about domain complexity and more about showing backend/platform fundamentals in C++:
 
-To compile and run tests manually (without Docker), use the following commands based on your OS:
+- multithreaded request serving
+- middleware-based separation of concerns
+- cache/database interaction
+- service observability
+- containerized local reproducibility
+- automated behavioral verification
 
-```bash
-### On Windows (MinGW):
-g++ -std=c++17 -Iinclude -I. test/test_main.cpp test/test_helpers.cpp -o test -lws2_32
-./test
+For interviews, I would describe it as a small service-platform exercise rather than as an order-management product.
 
-### On Linux/macOS:
-g++ -std=c++17 -Iinclude -I. test/test_main.cpp test/test_helpers.cpp -o test
-./test
-```
+## Roadmap
 
----
+- Move API key handling to environment-based configuration
+- Add per-route latency histograms and richer error metrics
+- Improve delete correctness by checking affected rows explicitly
+- Add configuration support for port, TTL, and DB path
+- Add load testing to show throughput and concurrency behavior
+- Explore replacing SQLite with a client/server database for stronger infra discussion
 
-## 📝 Minor Updates – Sept 29, 2025
+## Author
 
-- Added `/healthcheck` route for uptime monitoring
-- Introduced structured logging middleware (writes to `logs/server.log`)
-- Added `.gitignore` for logs, database files, and binaries:
-Contents of `.gitignore`:
-logs/
-*.log
-*.db
-server.exe
+**Weijia (J) Chen**  
+C++ Backend / Systems Developer
 
----
+## License
 
-## ✅ Recent Updates (Oct 2025)
-
-- ✅ Added `/order/delete/:id` route
-- ✅ Added full end-to-end tests (`test_endpoints.cpp`)
-- ✅ Separated route logic into `order_routes.cpp`
-- ✅ Added delay in `test_main.cpp` to wait for Redis on startup
-- ✅ Fixed `static_assert` with `fmt` + Unicode output
-- ✅ Linked proper paths via CMake and Docker `g++`
-- ✅ Docker build success (redis++, sqlite3, fmt)
-- ✅ Docker volume mapping for logs and Redis data
-- ✅ Docker unit tests working (exit code 0)
-- ✅ Clean logs: all tests pass, server starts cleanly
-- ✅ Prometheus /metrics with histograms and counters
-- ✅ API key authentication middleware for all critical endpoints
-
----
-
-## 🔧 Notes
-
-- Redis TTL is set to 5 minutes.
-- Order status is either `PENDING` or `PAID`.
-- Redis is optional — fallback to DB works gracefully.
-- SQLite DB and logs are persisted via volumes.
-- Prometheus metrics are exported on /metrics.
-
----
-
-## 📄 License
-
-This project is licensed under the [MIT License](./LICENSE).  
-Feel free to use, modify, and distribute it for personal or commercial use.
-
-
-
+MIT License (c) 2025 Weijia Chen

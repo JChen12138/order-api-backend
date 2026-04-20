@@ -4,6 +4,9 @@
     <ClCompile Include="C:\Code\Projects\RestAPI_DB\src\main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="C:\Code\Projects\RestAPI_DB\src\order_routes.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="C:\Code\Projects\RestAPI_DB\CMakeLists.txt" />

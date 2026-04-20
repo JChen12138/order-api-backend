@@ -4,7 +4,7 @@
 #include "../include/helpers.hpp"
 
 crow::json::rvalue get_or_empty(crow::json::rvalue& obj, const std::string& key) {
-    return obj.has(key) ? obj[key] : crow::json::rvalue();
+    return obj && obj.has(key) ? obj[key] : crow::json::rvalue();
 }
 
 TEST_CASE("is_valid_amount works") {
@@ -27,7 +27,7 @@ TEST_CASE("is_valid_amount works") {
 TEST_CASE("is_valid_order_no works") {
     crow::json::rvalue j_ok = crow::json::load(R"({"no": "ORD12345"})");
     crow::json::rvalue j_empty = crow::json::load(R"({"no": ""})");
-    crow::json::rvalue j_missing = crow::json::load(R"({})");
+    crow::json::rvalue j_missing = crow::json::load(R"({"different": "value"})");
     crow::json::rvalue j_num = crow::json::load(R"({"no": 12345})");
 
     auto ok = get_or_empty(j_ok, "no");

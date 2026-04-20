@@ -104,3 +104,35 @@ TEST_CASE("Paying with invalid or missing order_no returns 400") {
     CHECK(res_missing != nullptr);
     CHECK(res_missing->status == 400);
 }
+
+// ---------------------------------------------------------
+
+TEST_CASE("Readiness endpoint is unauthenticated and returns service status") {
+    httplib::Client cli("http://" TEST_API_HOST ":8080");
+
+    auto res = cli.Get("/readiness");
+    CHECK(res != nullptr);
+    CHECK((res->status == 200 || res->status == 503));
+
+    auto json = crow::json::load(res->body);
+    CHECK(json);
+    CHECK(json.has("status"));
+    CHECK(json.has("ready"));
+    CHECK(json.has("db_ready"));
+    CHECK(json.has("redis_available"));
+}
+
+// ---------------------------------------------------------
+
+TEST_CASE("Metrics endpoint exposes lifecycle and overload counters") {
+    httplib::Client cli("http://" TEST_API_HOST ":8080");
+
+    auto res = cli.Get("/metrics");
+    CHECK(res != nullptr);
+    CHECK(res->status == 200);
+    CHECK(res->body.find("overload_rejections") != string::npos);
+    CHECK(res->body.find("shutdown_rejections") != string::npos);
+    CHECK(res->body.find("redis_errors") != string::npos);
+    CHECK(res->body.find("sqlite_errors") != string::npos);
+    CHECK(res->body.find("http_request_duration_ms_avg") != string::npos);
+}

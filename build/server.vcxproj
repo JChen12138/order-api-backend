@@ -418,6 +418,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="C:\Code\Projects\RestAPI_DB\src\main.cpp" />
+    <ClCompile Include="C:\Code\Projects\RestAPI_DB\src\order_routes.cpp" />
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>

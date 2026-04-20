@@ -409,6 +409,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="C:\Code\Projects\RestAPI_DB\test\test_endpoints.cpp" />
     <ClCompile Include="C:\Code\Projects\RestAPI_DB\test\test_helpers.cpp" />
     <ClCompile Include="C:\Code\Projects\RestAPI_DB\test\test_main.cpp" />
   </ItemGroup>
