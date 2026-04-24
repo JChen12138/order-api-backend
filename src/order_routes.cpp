@@ -12,6 +12,7 @@
 #include "helpers.hpp"
 #include "metrics.h"
 #include "order_routes.h"
+#include "runtime_config.h"
 #include "service_state.h"
 
 extern sqlite3* db;
@@ -52,9 +53,15 @@ bool try_cache_order(const string& order_no, const string& payload) {
     }
 
     try {
-        redis->set("order:" + order_no, payload, chrono::seconds(300));
+        redis->set(
+            "order:" + order_no,
+            payload,
+            chrono::seconds(runtime_config::cache_ttl_seconds.load(memory_order_relaxed)));
         record_redis_success();
-        spdlog::info("Cached order {} in Redis (TTL: 300s)", order_no);
+        spdlog::info(
+            "Cached order {} in Redis (TTL: {}s)",
+            order_no,
+            runtime_config::cache_ttl_seconds.load(memory_order_relaxed));
         return true;
     } catch (const sw::redis::Error& err) {
         record_redis_failure("Redis SET failed: " + string(err.what()));

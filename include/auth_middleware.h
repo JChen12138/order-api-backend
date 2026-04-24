@@ -1,5 +1,6 @@
 #pragma once
 #include "crow_all.h"
+#include "runtime_config.h"
 #include "service_state.h"
 
 struct AuthMiddleware {
@@ -11,11 +12,7 @@ struct AuthMiddleware {
         }
 
         const std::string api_key_header = req.get_header_value("Authorization");
-
-        // Replace with your secret key
-        const std::string secret_key = "1234567";
-
-        if (api_key_header != secret_key) {
+        if (api_key_header != runtime_config::api_key) {
             res.code = 401;
             res.set_header("Content-Type", "application/json");
             res.write(R"({"error": "Unauthorized"})");

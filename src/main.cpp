@@ -6,6 +6,7 @@
 #include <thread>
 #include <csignal>
 #include <memory>
+#include <stdexcept>
 #include <sqlite3.h>
 #include <sw/redis++/redis++.h>
 #include <spdlog/spdlog.h>
@@ -14,6 +15,7 @@
 #include "order_routes.h"
 #include "auth_middleware.h"
 #include "metrics.h"
+#include "runtime_config.h"
 #include "service_state.h"
 
 using namespace sw::redis;
@@ -24,6 +26,21 @@ using namespace service_state;
 string get_env(const string& var, const string& default_val) {
     const char* val = getenv(var.c_str());
     return val ? string(val) : default_val;
+}
+
+spdlog::level::level_enum parse_log_level(const string& raw_level) {
+    string level = raw_level;
+    transform(level.begin(), level.end(), level.begin(), [](unsigned char c) {
+        return static_cast<char>(tolower(c));
+    });
+
+    if (level == "trace") return spdlog::level::trace;
+    if (level == "debug") return spdlog::level::debug;
+    if (level == "warn" || level == "warning") return spdlog::level::warn;
+    if (level == "error") return spdlog::level::err;
+    if (level == "critical") return spdlog::level::critical;
+    if (level == "off") return spdlog::level::off;
+    return spdlog::level::info;
 }
 
 inline bool is_valid_amount(const crow::json::rvalue& val) {
@@ -190,10 +207,15 @@ int main(){
 
     auto logger = spdlog::basic_logger_mt("file_logger", "logs/server.log");
     spdlog::set_default_logger(logger);
-    spdlog::set_level(spdlog::level::info); // Or debug
+    spdlog::set_level(parse_log_level(get_env("LOG_LEVEL", "info")));
     spdlog::set_pattern("[%Y-%m-%d %H:%M:%S] [%^%l%$] %v");
 
     init_db();
+
+    runtime_config::api_key = get_env("API_KEY", "1234567");
+    runtime_config::cache_ttl_seconds.store(
+        max(1, stoi(get_env("CACHE_TTL_SECONDS", "300"))),
+        memory_order_relaxed);
 
     max_inflight_requests.store(
         max(1, stoi(get_env("MAX_INFLIGHT_REQUESTS", "64"))),

@@ -58,7 +58,7 @@ Build a portfolio-quality backend project that demonstrates:
 - State-changing operations invalidate cached order entries instead of trying to update cache and DB in a distributed transaction.
 - Redis is treated as an optional acceleration layer for most request paths; if Redis is unavailable, reads fall back to SQLite and write-side cache population/invalidation becomes best effort.
 - `/metrics` currently exposes richer service-level counters and latency aggregates, but not full labeled per-route histograms.
-- The API key is hard-coded in the current implementation and should be treated as demo-only, not production-ready secret handling.
+- The API key is now configurable via `API_KEY`, but the auth model remains intentionally simple and demo-oriented rather than production-ready secret management.
 
 ## Project Structure
 
@@ -74,6 +74,8 @@ Build a portfolio-quality backend project that demonstrates:
 |-- src/
 |   |-- main.cpp
 |   `-- order_routes.cpp
+|-- scripts/
+|   `-- load_demo.ps1
 |-- test/
 |   |-- test_endpoints.cpp
 |   |-- test_helpers.cpp
@@ -142,7 +144,17 @@ Notes:
 - `REDIS_HOST=redis` is injected through Docker Compose so the app uses the Redis container by service name.
 - Logs are mounted to `./logs`.
 - The SQLite database file is mounted through Compose for persistence across container restarts.
-- `MAX_INFLIGHT_REQUESTS`, `SERVER_PORT`, and `SHUTDOWN_DRAIN_MS` can be configured with environment variables.
+- `API_KEY`, `CACHE_TTL_SECONDS`, `LOG_LEVEL`, `MAX_INFLIGHT_REQUESTS`, `SERVER_PORT`, and `SHUTDOWN_DRAIN_MS` can be configured with environment variables.
+
+Example:
+
+```powershell
+$env:API_KEY = "infra-demo-key"
+$env:CACHE_TTL_SECONDS = "120"
+$env:LOG_LEVEL = "debug"
+$env:MAX_INFLIGHT_REQUESTS = "2"
+.\build\bin\Debug\server.exe
+```
 
 ### CMake Status
 
@@ -170,6 +182,23 @@ Verified in repo:
 
 - doctest-based endpoint coverage exists in `test/test_endpoints.cpp`
 - helper validation coverage exists in `test/test_helpers.cpp`
+
+## Load / Drain Demo
+
+To demonstrate overload shedding and readiness behavior with minimal setup:
+
+1. Start the server with a low in-flight limit, for example `MAX_INFLIGHT_REQUESTS=2`
+2. In another PowerShell terminal, run:
+
+```powershell
+.\scripts\load_demo.ps1 -ApiKey "1234567" -ConcurrentRequests 40
+```
+
+What this demonstrates:
+
+- concurrent requests can trigger `503` overload shedding when the in-flight budget is small, though this script is a lightweight behavior demo rather than a formal benchmark
+- `/readiness` remains available as a probe endpoint
+- after you press `Ctrl+C` in the server terminal, the script polls `/readiness` and shows the service leaving ready state during shutdown drain
 
 ## Metrics Overview
 
@@ -262,11 +291,8 @@ For interviews, I would describe it as a small service-platform exercise rather 
 
 ## Roadmap
 
-- Move API key handling to environment-based configuration
 - Add per-route latency histograms and richer error metrics
-- Improve delete correctness by checking affected rows explicitly
-- Add configuration support for port, TTL, and DB path
-- Add load testing to show throughput and concurrency behavior
+- Add a richer benchmark/load-test path for more repeatable throughput and concurrency measurements
 - Explore replacing SQLite with a client/server database for stronger infra discussion
 
 ## Author
